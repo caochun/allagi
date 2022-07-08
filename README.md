@@ -1,10 +1,10 @@
-# manteau-flow
+# allagi
 
 ## About
 
-Manteau-flow is a simple business flow engine which is built on state charts implementation from apache (commons-scxml).
+Allagi is a simple business flow engine which is built on state charts implementation from apache (commons-scxml).
 
-## Why manteau-flow
+## Why Allagi
 
 ### State machine based business process modeling
 
