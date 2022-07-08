@@ -1,0 +1,21 @@
+@startuml
+
+[*] -right-> creating
+
+creating -right-> editing : create
+
+editing --> editing : save
+editing -right-> team_reviewing : submit
+team_reviewing -right-> dept_reviewing : submit
+
+dept_reviewing -right-> tracking : approve
+
+team_reviewing -up-> editing : reject
+dept_reviewing -right-> team_reviewing : reject
+dept_reviewing -[#red,dashed]-> editing : reject
+editing -[#red,dashed]-> dept_reviewing : submit
+
+tracking -down-> tracking : track
+tracking --> [*] : close
+
+@enduml

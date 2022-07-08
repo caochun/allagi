@@ -1,0 +1,31 @@
+@startuml
+
+
+[*] --> creating
+
+state urgentChoice <<choice>>
+
+creating -right-> editing : create
+
+editing -left-> editing : save
+
+editing -down->  team_reviewing : submit
+team_reviewing -up-> editing : reject
+
+team_reviewing -right-> urgentChoice : submit
+
+urgentChoice -right-> company_reviewing : if urgent
+urgentChoice -down-> dept_reviewing : if not
+
+dept_reviewing --> company_reviewing : submit
+
+company_reviewing --> tracking : approve
+
+
+company_reviewing -[#red,dashed]-> dept_reviewing : reject
+company_reviewing -[#red,dashed]-> team_reviewing : reject
+
+tracking -down-> tracking : track
+tracking --> [*] : close
+
+@enduml

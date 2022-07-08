@@ -1,0 +1,22 @@
+@startuml
+
+[*] -down-> creating
+
+state reviewing {
+    [*] -right-> pending
+    pending -right-> accepted
+    accepted -right-> completed
+}
+
+creating -right-> editing : create
+
+editing --> editing : save
+editing --> reviewing : submit
+reviewing --> editing : reject
+pending -[#red,dashed]-> editing : pull back
+
+reviewing -right-> tracking : approve
+tracking --> tracking : track
+tracking -down-> [*] : close
+
+@enduml
