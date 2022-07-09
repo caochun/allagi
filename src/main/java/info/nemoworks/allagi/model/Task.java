@@ -1,5 +1,6 @@
 package info.nemoworks.allagi.model;
 
+import com.google.common.base.Objects;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.logging.Log;
@@ -49,6 +50,26 @@ public class Task extends Action {
     public Task() {
         log = LogFactory.getLog(this.getClass());
         this.status = STATUS.INITIALIZED;
+    }
+
+    public Task(Task task) {
+        this.log = task.log;
+        this.name = task.name;
+        this.stateId = task.stateId;
+        this.completeEvent = task.completeEvent;
+        this.status = task.status;
+        this.taskId = task.taskId;
+        this.predecessorId = task.predecessorId;
+        this.executionContext = task.executionContext;
+        this.trace = task.trace;
+        this.flow = task.flow;
+    }
+
+    public boolean equalTaskDefinition(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Task)) return false;
+        Task task = (Task) o;
+        return Objects.equal(log, task.log) && Objects.equal(name, task.name) && Objects.equal(stateId, task.stateId) && Objects.equal(completeEvent, task.completeEvent) && status == task.status && Objects.equal(predecessorId, task.predecessorId) && Objects.equal(trace, task.trace) && Objects.equal(flow, task.flow);
     }
 
     public boolean cancel() {
@@ -124,7 +145,7 @@ public class Task extends Action {
         if (this.trace.getLatest(task) == null)
             return false;
 
-        if (trigger("GOTO_" + task.getName())) {
+        if (trigger("GOTO_" + task.getStateId())) {
             trace.append(this, Trace.ORIGIN.GOTO);
             this.status = STATUS.COMPLETED;
             log.info("jump to task " + task.getName() + " from " + this.getName());

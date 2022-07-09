@@ -22,8 +22,8 @@ public class Trace {
 
     public Node getLatest(Task task) {
         Node n = head;
-        while ((n.getTask() != task) && (n != null)) {
-            // still only chain considered
+        while ((n != null) && (n.getTask().equalTaskDefinition(task))) {
+            //still only chain considered
             n = trace.predecessors(n).iterator().next();
         }
         return n;
@@ -33,21 +33,24 @@ public class Trace {
         return trace.predecessors(node).iterator().next();
     }
 
+
     public Trace() {
         log = LogFactory.getLog(this.getClass());
         trace = GraphBuilder.directed().build();
     }
+
 
     public synchronized boolean append(Task task) {
         return this.append(task, ORIGIN.NORMAL);
     }
 
     public synchronized boolean append(Task task, ORIGIN origin) {
-        Node current = new Node(task, origin);
+        Task copyTask = new Task(task);
+        Node current = new Node(copyTask, origin);
 
-        if (head == null) {
+        if (head == null){
             trace.addNode(current);
-            head = current;
+            head= current;
             return true;
         }
 
@@ -61,7 +64,7 @@ public class Trace {
     public synchronized boolean deduct(Task task) {
         if (head.getTask() != task)
             return false;
-        // multiple predecessors is not considered currently
+        //multiple predecessors is not considered currently
         Node pre = trace.predecessors(head).iterator().next();
 
         if (pre == null)
@@ -73,16 +76,17 @@ public class Trace {
         return true;
     }
 
-    // public synchronized boolean unwind(Task task) {
-    //
-    // if (trace.predecessors(head).stream().filter(n ->
-    // n.getTask().equals(task)).count() == 0) return false;
-    // if (head.getTask().getStatus() != Task.STATUS.PENDING) return false;
-    //
-    //
-    // }
+//    public synchronized boolean unwind(Task task) {
+//
+//        if (trace.predecessors(head).stream().filter(n -> n.getTask().equals(task)).count() == 0) return false;
+//        if (head.getTask().getStatus() != Task.STATUS.PENDING) return false;
+//
+//
+//    }
+
 
     private MutableGraph<Node> trace;
+
 
     @Data
     public static class Node {
@@ -112,6 +116,7 @@ public class Trace {
         public String toString() {
             return task + "@" + instant.toString();
         }
+
 
     }
 
