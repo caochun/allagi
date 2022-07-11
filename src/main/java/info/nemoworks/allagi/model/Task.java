@@ -35,6 +35,7 @@ public class Task extends Action {
     @Getter
     private STATUS status;
 
+    @Getter
     private String taskId;
 
     private String predecessorId;

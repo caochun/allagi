@@ -1,5 +1,6 @@
 package info.nemoworks.allagi.model;
 
+import com.google.common.graph.EndpointPair;
 import com.google.common.graph.GraphBuilder;
 import com.google.common.graph.MutableGraph;
 import lombok.Data;
@@ -8,6 +9,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.time.Instant;
+import java.util.Set;
 
 public class Trace {
 
@@ -33,6 +35,17 @@ public class Trace {
         return trace.predecessors(node).iterator().next();
     }
 
+    public Node getNext(Node node) {
+        return trace.successors(node).iterator().next();
+    }
+
+    public Set<EndpointPair<Node>> getEdges() {
+        return trace.edges();
+    }
+
+    public Set<Node> getNodes() {
+        return trace.nodes();
+    }
 
     public Trace() {
         log = LogFactory.getLog(this.getClass());
@@ -45,8 +58,7 @@ public class Trace {
     }
 
     public synchronized boolean append(Task task, ORIGIN origin) {
-        Task copyTask = new Task(task);
-        Node current = new Node(copyTask, origin);
+        Node current = new Node(task, origin);
 
         if (head == null){
             trace.addNode(current);
@@ -93,6 +105,7 @@ public class Trace {
 
         private Instant instant;
         private Task task;
+        private Task taskRecord;
         private ORIGIN origin;
 
         public Node(Task task) {
@@ -110,6 +123,7 @@ public class Trace {
         public Node(Instant instant, Task task, ORIGIN origin) {
             this.instant = instant;
             this.task = task;
+            this.taskRecord = new Task(task);
             this.origin = origin;
         }
 
