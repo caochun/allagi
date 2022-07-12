@@ -105,8 +105,8 @@ public class Task extends Action {
             return false;
 
         if (trigger("GOTO_" + this.getStateId())) {
-            trace.append(this, Trace.ORIGIN.WITHDRAW);
             this.status = STATUS.ACCEPTED;
+            trace.append(this, Trace.ORIGIN.WITHDRAW);
             log.info("task " + this.getName() + " uncompleted");
             return true;
         }
@@ -129,7 +129,7 @@ public class Task extends Action {
 
     public boolean invoke(ActionExecutionContext actionExecutionContext) {
 
-        if ((this.status != STATUS.INITIALIZED) && (this.status != STATUS.COMPLETED))
+        if (this.status != STATUS.INITIALIZED)
             return false;
 
         log.info("task " + this.getName() + " invoked");
@@ -147,8 +147,8 @@ public class Task extends Action {
             return false;
 
         if (trigger("GOTO_" + task.getStateId())) {
-            trace.append(this, Trace.ORIGIN.GOTO);
             this.status = STATUS.COMPLETED;
+            trace.append(task, Trace.ORIGIN.GOTO);
             log.info("jump to task " + task.getName() + " from " + this.getName());
             return true;
         }

@@ -24,7 +24,7 @@ public class Trace {
 
     public Node getLatest(Task task) {
         Node n = head;
-        while ((n != null) && (n.getTask().equalTaskDefinition(task))) {
+        while ((n != null) && (n.getTask() == task)) {
             //still only chain considered
             n = trace.predecessors(n).iterator().next();
         }
