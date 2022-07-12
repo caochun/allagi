@@ -59,7 +59,6 @@ public class FlowTests {
             writer.append("@startuml");
             writer.append("\n");
             Task headTaskRecord = flow.getTrace().getHead().getTaskRecord();
-            writer.append("[*] --> " + headTaskRecord.getName() + ":" + headTaskRecord.getTaskId().replace("-", "").substring(0, 6) + "\n");
             Set<EndpointPair<Trace.Node>> edges = flow.getTrace().getEdges();
             for (EndpointPair<Trace.Node> edge : edges) {
                 writer.append(edge.source().getTaskRecord().getName())
@@ -70,7 +69,11 @@ public class FlowTests {
                         .append(edge.target().getTaskRecord().getTaskId().replace("-", "").substring(0, 6))
                         .append("\n");
             }
-
+            writer.append(headTaskRecord.getName())
+                    .append(":")
+                    .append(headTaskRecord.getTaskId().replace("-", "").substring(0, 6))
+                    .append(" --> [*]")
+                    .append("\n");
             Set<Trace.Node> nodes = flow.getTrace().getNodes();
             for (Trace.Node node : nodes) {
                 Task task = node.getTaskRecord();
@@ -82,7 +85,16 @@ public class FlowTests {
                         .append(":")
                         .append(task.getStatus().name())
                         .append("\n");
+                writer.append("\"")
+                        .append(task.getName())
+                        .append(":")
+                        .append(task.getTaskId().replace("-", "").substring(0, 6))
+                        .append("\"")
+                        .append(":")
+                        .append(node.getOrigin().name())
+                        .append("\n");
             }
+
             writer.append("@enduml");
         } catch (IOException e) {
             throw new RuntimeException(e);
