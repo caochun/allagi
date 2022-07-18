@@ -17,7 +17,7 @@
                 <onentry>
                     <flow:task name="task2" completeEvent="state2_1_1_done" stateId="state2_1_1"/>
                 </onentry>
-                <transition event="state2_2_1_done" target="state2_1_2"/>
+                <transition event="state2_1_1_done" target="state2_1_2"/>
             </state>
             <final id="state2_1_2"/>
         </state>

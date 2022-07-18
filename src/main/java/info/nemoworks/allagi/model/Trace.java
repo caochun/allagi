@@ -1,137 +1,93 @@
 package info.nemoworks.allagi.model;
 
-import com.google.common.graph.EndpointPair;
-import com.google.common.graph.GraphBuilder;
-import com.google.common.graph.MutableGraph;
 import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.commons.scxml2.model.EnterableState;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Trace {
 
     Log log;
 
     @Getter
-    private Node head;
-
-    public Task getHeadTask() {
-        return head.getTask();
-    }
-
-    public Node getLatest(Task task) {
-        Node n = head;
-        while ((n != null) && (n.getTask() == task)) {
-            //still only chain considered
-            n = trace.predecessors(n).iterator().next();
-        }
-        return n;
-    }
-
-    public Node getPre(Node node) {
-        return trace.predecessors(node).iterator().next();
-    }
-
-    public Node getNext(Node node) {
-        return trace.successors(node).iterator().next();
-    }
-
-    public Set<EndpointPair<Node>> getEdges() {
-        return trace.edges();
-    }
-
-    public Set<Node> getNodes() {
-        return trace.nodes();
-    }
+    private final ArrayList<Node> trace;
 
     public Trace() {
         log = LogFactory.getLog(this.getClass());
-        trace = GraphBuilder.directed().build();
+        trace = new ArrayList<>();
     }
 
-
-    public synchronized boolean append(Task task) {
-        return this.append(task, ORIGIN.NORMAL);
+    public synchronized boolean append(Set<EnterableState> configuration) {
+        return this.append(configuration, ORIGIN.NORMAL);
     }
 
-    public synchronized boolean append(Task task, ORIGIN origin) {
-        Node current = new Node(task, origin);
-
-        if (head == null){
-            trace.addNode(current);
-            head= current;
-            return true;
-        }
-
-        if (trace.putEdge(head, current)) {
-            head = current;
-            return true;
-        }
-        return false;
+    public synchronized boolean append(Set<EnterableState> configuration, ORIGIN origin) {
+        return trace.add(new Node(origin, configuration));
     }
 
-    public synchronized boolean deduct(Task task) {
-        if (head.getTask() != task)
-            return false;
-        //multiple predecessors is not considered currently
-        Node pre = trace.predecessors(head).iterator().next();
-
-        if (pre == null)
-            return false;
-
-        trace.removeEdge(pre, head);
-        trace.removeNode(head);
-        head = pre;
-        return true;
+    public Set<RecordNode> getRecordNodes() {
+        return trace.stream().flatMap(node -> node.getRecordNodes().stream()).collect(Collectors.toSet());
     }
-
-//    public synchronized boolean unwind(Task task) {
-//
-//        if (trace.predecessors(head).stream().filter(n -> n.getTask().equals(task)).count() == 0) return false;
-//        if (head.getTask().getStatus() != Task.STATUS.PENDING) return false;
-//
-//
-//    }
-
-
-    private MutableGraph<Node> trace;
 
 
     @Data
     public static class Node {
 
         private Instant instant;
+        private ORIGIN origin;
+        private Set<RecordNode> recordNodes;
+        private Set<EnterableState> configuration;
+
+        public Node(Instant instant, ORIGIN origin, Set<RecordNode> recordNodes, Set<EnterableState> configuration) {
+            this.instant = instant;
+            this.origin = origin;
+            this.recordNodes = recordNodes;
+            this.configuration = new HashSet<>(configuration);
+        }
+
+        public Node(Instant instant, ORIGIN origin, Set<EnterableState> configuration) {
+            this(instant, origin, generateRecordNodes(configuration), configuration);
+        }
+
+        public Node(ORIGIN origin, Set<EnterableState> configuration) {
+            this(Instant.now(), origin, configuration);
+        }
+
+        public static Set<RecordNode> generateRecordNodes(Set<EnterableState> configuration) {
+            return configuration.stream()
+                    .filter(EnterableState::isAtomicState)
+                    .flatMap(enterableState -> enterableState.getOnEntries().stream())
+                    .flatMap(onEntry -> onEntry.getActions().stream())
+                    .filter(action -> action instanceof Task)
+                    .map(action -> (Task) action)
+                    .map(RecordNode::new)
+                    .collect(Collectors.toSet());
+        }
+    }
+
+
+    @Data
+    public static class RecordNode {
+
         private Task task;
         private Task taskRecord;
-        private ORIGIN origin;
 
-        public Node(Task task) {
-            this(task, ORIGIN.NORMAL);
-        }
 
-        public Node(Task task, ORIGIN origin) {
-            this(Instant.now(), task, origin);
-        }
-
-        public Node(Instant instant, Task task) {
-            this(instant, task, ORIGIN.NORMAL);
-        }
-
-        public Node(Instant instant, Task task, ORIGIN origin) {
-            this.instant = instant;
+        public RecordNode(Task task, Task taskRecord) {
             this.task = task;
-            this.taskRecord = new Task(task);
-            this.origin = origin;
+            this.taskRecord = taskRecord;
         }
 
-        public String toString() {
-            return task + "@" + instant.toString();
+        public RecordNode(Task task) {
+            this(task, new Task(task));
         }
-
-
     }
 
     public static enum ORIGIN {

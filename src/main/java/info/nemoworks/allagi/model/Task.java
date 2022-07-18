@@ -1,6 +1,5 @@
 package info.nemoworks.allagi.model;
 
-import com.google.common.base.Objects;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.logging.Log;
@@ -11,8 +10,7 @@ import org.apache.commons.scxml2.TriggerEvent;
 import org.apache.commons.scxml2.model.*;
 import org.apache.commons.scxml2.system.EventVariable;
 
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Task extends Action {
@@ -35,12 +33,11 @@ public class Task extends Action {
     private String completeEvent;
 
     @Getter
+    @Setter
     private STATUS status;
 
     @Getter
     private String taskId;
-
-    private String predecessorId;
 
     // Every task has its own lifecycle
     // INITIALIZED (execute)-> <--(cancel) PENDING (accept)-> ACCEPTED (complete)-> COMPLETED (execute)--> PENDING...
@@ -56,22 +53,16 @@ public class Task extends Action {
     }
 
     public Task(Task task) {
+        this.initialized = task.initialized;
         this.log = task.log;
         this.name = task.name;
         this.stateId = task.stateId;
         this.completeEvent = task.completeEvent;
         this.status = task.status;
         this.taskId = task.taskId;
-        this.predecessorId = task.predecessorId;
         this.trace = task.trace;
         this.flow = task.flow;
-    }
-
-    public boolean equalTaskDefinition(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Task)) return false;
-        Task task = (Task) o;
-        return Objects.equal(log, task.log) && Objects.equal(name, task.name) && Objects.equal(stateId, task.stateId) && Objects.equal(completeEvent, task.completeEvent) && status == task.status && Objects.equal(predecessorId, task.predecessorId) && Objects.equal(trace, task.trace) && Objects.equal(flow, task.flow);
+        this.context = task.context;
     }
 
     public boolean cancel() {
@@ -79,7 +70,7 @@ public class Task extends Action {
             return false;
 
         this.status = STATUS.INITIALIZED;
-        this.trace.deduct(this);
+//        this.trace.deduct(this);
 
         log.info("task " + this.getName() + " cancelled");
 
@@ -98,71 +89,122 @@ public class Task extends Action {
         return true;
     }
 
-    public boolean uncomplete() throws ModelException {
-        if (trace.getHeadTask().getStatus() != STATUS.PENDING)
-            return false;
+    public void uncomplete() throws ModelException {
+        // only in serial mode locally,  uncomplete is allowed
+        // uncomplete is allowed only when the task is completed and nothing happens after it
+        Trace.Node backNode = checkUncomplete();
 
-        if (trace.getPre(trace.getHead()).getTask() != this)
-            return false;
-
-        if (trigger("GOTO_" + this.getStateId())) {
-            this.status = STATUS.ACCEPTED;
-            trace.append(this, Trace.ORIGIN.WITHDRAW);
+        this.context.getGlobalContext().set("traceType", Trace.ORIGIN.WITHDRAW);
+        StringBuilder eventName = new StringBuilder("GOTO");
+        backNode.getConfiguration().forEach(e -> eventName.append("-").append(e.getId()));
+        this.setStatus(STATUS.ACCEPTED);
+        if (trigger(eventName.toString())) {
             log.info("task " + this.getName() + " uncompleted");
-            return true;
+            return;
         }
 
         log.info("task " + this.getName() + " fail to uncomplete");
+        this.context.getGlobalContext().set("traceType", null);
+        throw new ModelException("task " + this.getName() + " fail to uncomplete");
+    }
 
-        return false;
+    private Trace.Node checkUncomplete() throws ModelException {
+        if (this.status != STATUS.COMPLETED)
+            throw new ModelException("task " + this.getName() + " is not completed");
+
+        int size = trace.getTrace().size();
+        if (size == 0)
+            throw new ModelException("No trace to uncomplete");
+        else {
+            Trace.Node current = trace.getTrace().get(size - 1);
+            Set<Task> currentTasks = current.getRecordNodes().stream()
+                    .map(Trace.RecordNode::getTask)
+                    .collect(Collectors.toSet());
+            if (currentTasks.contains(this))
+                return current;
+
+            if (size == 1)
+                throw new ModelException("No trace to uncomplete");
+
+            Trace.Node last = trace.getTrace().get(size - 2);
+            Set<Task> lastTasks = last.getRecordNodes().stream()
+                    .map(Trace.RecordNode::getTask)
+                    .collect(Collectors.toSet());
+            if (!lastTasks.contains(this))
+                throw new ModelException("No trace to uncomplete");
+
+            Set<Task> newTasks = new HashSet<>(currentTasks);
+            newTasks.removeAll(lastTasks);
+            newTasks = newTasks.stream()
+                    .filter(task -> task.getStatus() != STATUS.PENDING)
+                    .collect(Collectors.toSet());
+            if (newTasks.size() > 0)
+                throw new ModelException("New tasks are not pending");
+
+            return last;
+        }
 
     }
 
-    public boolean accept() {
+    public void accept() throws ModelException {
         if (this.status != STATUS.PENDING)
-            return false;
+            throw new ModelException("task " + this.getName() + " is not pending");
 
         this.status = STATUS.ACCEPTED;
         log.info("task " + this.getName() + " accepted");
-
-        return true;
     }
 
     public boolean invoke(ActionExecutionContext actionExecutionContext) {
-
         if (this.status != STATUS.INITIALIZED)
             return false;
 
         log.info("task " + this.getName() + " invoked");
-
         this.status = STATUS.PENDING;
 
-        this.trace.append(this);
-
+        actionExecutionContext.getGlobalContext().set("traceType", Trace.ORIGIN.NORMAL);
         return true;
 
     }
 
-    public boolean jump(Task task) throws ModelException {
-        if (this.trace.getLatest(task) == null)
-            return false;
+    public void jump(Trace.Node node) throws ModelException {
+        if (!this.trace.getTrace().contains(node))
+            throw new ModelException("task " + this.getName() + " is not in the trace");
 
-        if (trigger("GOTO_" + task.getStateId())) {
-            this.status = STATUS.COMPLETED;
-            trace.append(task, Trace.ORIGIN.GOTO);
-            log.info("jump to task " + task.getName() + " from " + this.getName());
-            return true;
+        this.context.getGlobalContext().set("traceType", Trace.ORIGIN.GOTO);
+        StringBuilder eventName = new StringBuilder("GOTO");
+        node.getConfiguration().forEach(e -> eventName.append("-").append(e.getId()));
+        this.status = STATUS.COMPLETED;
+        if (trigger(eventName.toString())) {
+            log.info("jump to node when" + node.getInstant());
+            return;
         }
 
         log.info("task " + this.getName() + " fail to jump");
+        this.context.getGlobalContext().set("traceType", null);
+        throw new ModelException("task " + this.getName() + " fail to jump");
+    }
 
-
-        return false;
+    public void jump(Task... tasks) throws ModelException {
+        ArrayList<Trace.Node> nodes = this.trace.getTrace();
+        for (int i = nodes.size() - 1; i >= 0; i--) {
+            Set<Task> jumpTasks = nodes.get(i).getRecordNodes().stream()
+                    .map(Trace.RecordNode::getTask)
+                    .collect(Collectors.toSet());
+            Set<Task> expectTasks = Arrays.stream(tasks)
+                    .collect(Collectors.toSet());
+            if (jumpTasks.size() == expectTasks.size() && jumpTasks.containsAll(expectTasks)) {
+                this.jump(nodes.get(i));
+                return;
+            }
+        }
+        throw new ModelException("task " + this.getName() + " fail to jump");
     }
 
     private Trace trace = null;
 
     private Flow flow = null;
+
+    private ActionExecutionContext context = null;
 
     @Override
     public void execute(ActionExecutionContext actionExecutionContext) throws ModelException {
@@ -171,23 +213,17 @@ public class Task extends Action {
             initialization(actionExecutionContext);
         }
 
+        this.context = actionExecutionContext;
         this.taskId = UUID.randomUUID().toString();
-
         log.info("this :" + taskId);
 
-        Object e = actionExecutionContext.getGlobalContext().get(SCXMLSystemContext.EVENT_KEY);
-        if ((e instanceof TriggerEvent)) {
-            this.predecessorId = ((TriggerEvent) e).getPayload().toString();
-            log.info("this : " +taskId + ", predecessor :" + predecessorId);
-        }
-
-
         EventVariable eventVariable = (EventVariable) actionExecutionContext.getGlobalContext().get(SCXMLSystemContext.EVENT_KEY);
-
         if (eventVariable != null)
             log.info("task " + this.getName() + " executing, triggered by event " + eventVariable.getName());
 
-        this.invoke(actionExecutionContext);
+        if (this.invoke(actionExecutionContext)) {
+            log.info("task " + this.getName() + " executed, from INITIALIZED to PENDING");
+        }
 
     }
 
