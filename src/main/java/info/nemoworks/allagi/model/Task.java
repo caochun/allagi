@@ -6,18 +6,20 @@ import lombok.Setter;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.commons.scxml2.ActionExecutionContext;
-import org.apache.commons.scxml2.SCXMLExpressionException;
 import org.apache.commons.scxml2.SCXMLSystemContext;
 import org.apache.commons.scxml2.TriggerEvent;
-import org.apache.commons.scxml2.model.Action;
-import org.apache.commons.scxml2.model.ModelException;
+import org.apache.commons.scxml2.model.*;
 import org.apache.commons.scxml2.system.EventVariable;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class Task extends Action {
 
     Log log;
+
+    private boolean initialized = false;
 
     @Getter
     @Setter
@@ -61,7 +63,6 @@ public class Task extends Action {
         this.status = task.status;
         this.taskId = task.taskId;
         this.predecessorId = task.predecessorId;
-        this.executionContext = task.executionContext;
         this.trace = task.trace;
         this.flow = task.flow;
     }
@@ -85,7 +86,7 @@ public class Task extends Action {
         return false;
     }
 
-    public boolean complete() {
+    public boolean complete() throws ModelException {
         if (this.status != STATUS.ACCEPTED)
             return false;
 
@@ -97,7 +98,7 @@ public class Task extends Action {
         return true;
     }
 
-    public boolean uncomplete() {
+    public boolean uncomplete() throws ModelException {
         if (trace.getHeadTask().getStatus() != STATUS.PENDING)
             return false;
 
@@ -142,7 +143,7 @@ public class Task extends Action {
 
     }
 
-    public boolean jump(Task task) {
+    public boolean jump(Task task) throws ModelException {
         if (this.trace.getLatest(task) == null)
             return false;
 
@@ -159,46 +160,27 @@ public class Task extends Action {
         return false;
     }
 
-    @Getter
-    private ActionExecutionContext executionContext;
-
     private Trace trace = null;
 
     private Flow flow = null;
 
     @Override
-    public void execute(ActionExecutionContext actionExecutionContext) throws ModelException, SCXMLExpressionException {
+    public void execute(ActionExecutionContext actionExecutionContext) throws ModelException {
 
-        this.executionContext = actionExecutionContext;
+        if (!initialized) {
+            initialization(actionExecutionContext);
+        }
 
         this.taskId = UUID.randomUUID().toString();
 
         log.info("this :" + taskId);
 
-        if (trace == null) {
-            Object t = actionExecutionContext.getGlobalContext().get("trace");
-            if ((t == null) || (!(t instanceof Trace))) {
-                throw new ModelException("no trace in executionContext");
-            }
-            this.trace = (Trace) t;
-        }
-
         Object e = actionExecutionContext.getGlobalContext().get(SCXMLSystemContext.EVENT_KEY);
-        if ((e != null) && (e instanceof TriggerEvent)) {
+        if ((e instanceof TriggerEvent)) {
             this.predecessorId = ((TriggerEvent) e).getPayload().toString();
-
             log.info("this : " +taskId + ", predecessor :" + predecessorId);
         }
 
-
-
-        if (flow == null) {
-            Object t = actionExecutionContext.getGlobalContext().get("flow");
-            if ((t == null) || (!(t instanceof Flow))) {
-                throw new ModelException("no flow in executionContext");
-            }
-            this.flow = (Flow) t;
-        }
 
         EventVariable eventVariable = (EventVariable) actionExecutionContext.getGlobalContext().get(SCXMLSystemContext.EVENT_KEY);
 
@@ -209,16 +191,51 @@ public class Task extends Action {
 
     }
 
+    private void initialization(ActionExecutionContext actionExecutionContext) throws ModelException {
 
-    public boolean trigger(String event) {
-
-
-        TriggerEvent evt = new TriggerEvent(event, TriggerEvent.SIGNAL_EVENT, this.taskId);
-        try {
-            flow.getEngine().triggerEvent(evt);
-        } catch (ModelException e) {
-            return false;
+        if (!(this.getParent() instanceof OnEntry)) {
+            throw new ModelException("task " + this.getName() + " must be a child of onEntry");
         }
+
+        EnterableState parentState = this.getParentEnterableState();
+
+        if (!(parentState instanceof State) || !parentState.isAtomicState()) {
+            throw new ModelException("task " + this.getName() + " must in an atomic state");
+        }
+
+        Set<Task> taskSet = ((State) parentState).getOnEntries().stream()
+                .flatMap(onEntry -> onEntry.getActions().stream()
+                        .filter(action -> action instanceof Task)
+                        .map(action -> (Task) action))
+                .collect(Collectors.toSet());
+
+        if (taskSet.size() > 1) {
+            throw new ModelException("task " + this.getName() + " in a state which has more than one task");
+        }
+
+        if (trace == null) {
+            Object t = actionExecutionContext.getGlobalContext().get("trace");
+            if ((!(t instanceof Trace))) {
+                throw new ModelException("no trace in executionContext");
+            }
+            this.trace = (Trace) t;
+        }
+
+        if (flow == null) {
+            Object f = actionExecutionContext.getGlobalContext().get("flow");
+            if ((!(f instanceof Flow))) {
+                throw new ModelException("no flow in executionContext");
+            }
+            this.flow = (Flow) f;
+        }
+
+        initialized = true;
+    }
+
+
+    public boolean trigger(String event) throws ModelException {
+        TriggerEvent evt = new TriggerEvent(event, TriggerEvent.SIGNAL_EVENT, this.taskId);
+        flow.getEngine().triggerEvent(evt);
         log.info("Trigger event " + event + " for task " + this.getName());
         return true;
     }

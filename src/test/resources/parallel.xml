@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       xmlns:flow="https://nemoworks.info/"
+       version="1.0"
+       datamodel="jexl"
+       initial="state1">
+
+    <state id="state1">
+        <onentry>
+            <flow:task name="task1" completeEvent="state1_done" stateId="state1"/>
+        </onentry>
+        <transition event="state1_done" target="state2"/>
+    </state>
+    <parallel id="state2">
+        <state id="state2_1">
+            <state id="state2_1_1">
+                <onentry>
+                    <flow:task name="task2" completeEvent="state2_1_1_done" stateId="state2_1_1"/>
+                </onentry>
+                <transition event="state2_2_1_done" target="state2_1_2"/>
+            </state>
+            <final id="state2_1_2"/>
+        </state>
+        <state id="state2_2">
+            <state id="state2_2_1">
+                <onentry>
+                    <flow:task name="task3" completeEvent="state2_2_1_done" stateId="state2_2_1"/>
+                </onentry>
+                <transition event="state2_2_1_done" target="state2_2_2"/>
+            </state>
+            <state id="state2_2_2">
+                <onentry>
+                    <flow:task name="task4" completeEvent="state2_2_2_done" stateId="state2_2_2"/>
+                </onentry>
+                <transition event="state2_2_2_done" target="state2_2_3"/>
+            </state>
+            <final id="state2_2_3"/>
+        </state>
+        <transition event="done.state.state2" target="state3"/>
+    </parallel>
+    <final id="state3"/>
+
+</scxml>

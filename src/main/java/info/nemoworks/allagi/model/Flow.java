@@ -13,21 +13,25 @@ import org.apache.commons.scxml2.env.SimpleErrorReporter;
 import org.apache.commons.scxml2.env.jexl.JexlContext;
 import org.apache.commons.scxml2.env.jexl.JexlEvaluator;
 import org.apache.commons.scxml2.io.SCXMLReader;
-import org.apache.commons.scxml2.model.CustomAction;
-import org.apache.commons.scxml2.model.ModelException;
-import org.apache.commons.scxml2.model.SCXML;
+import org.apache.commons.scxml2.model.*;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 public class Flow {
 
     private Log log;
 
     private SCXML stateMachine;
+
+    @Getter
+    private Map<String, Task> taskMap;
 
     @Getter
     private SCXMLExecutor engine;
@@ -65,11 +69,33 @@ public class Flow {
         engine = new SCXMLExecutor(evaluator, new SimpleDispatcher(), new SimpleErrorReporter(), semantics);
         engine.setStateMachine(stateMachine);
         engine.setRootContext(rootCtx);
+        checkTask();
         try {
             engine.go();
         } catch (final ModelException me) {
             logError(me);
         }
+    }
+
+    private void checkTask() {
+        // TODO: check if legal task definition
+        taskMap = new HashMap<String, Task>();
+        engine.getStateMachine().getTargets().values().stream()
+                .filter(EnterableState.class::isInstance)
+                .map(EnterableState.class::cast)
+                .flatMap(enterableState -> Stream.concat(
+                        enterableState.getOnEntries()
+                                .stream().flatMap(onEntry -> onEntry.getActions().stream())
+                                .filter(Task.class::isInstance),
+                        enterableState.getOnExits()
+                                .stream().flatMap(onExit -> onExit.getActions().stream())
+                                .filter(Task.class::isInstance)
+                ))
+                .map(Task.class::cast)
+                .forEach(task -> {
+                    taskMap.put(task.getName(), task);
+                });
+
     }
 
     public boolean resetMachine() {
