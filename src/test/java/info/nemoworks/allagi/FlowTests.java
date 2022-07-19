@@ -39,12 +39,14 @@ public class FlowTests {
         Task task4 = flow.getTaskMap().get("task4");
         task1.accept();
         task1.complete();
-//        task2.accept();
-//        task2.complete();
         task3.accept();
         task3.complete();
         task3.uncomplete();
         task3.jump(task2, task4);
+        task2.accept();
+        task2.complete();
+        task4.accept();
+        task4.complete();
         TraceUtil.draw(flow.getTrace(), "trace.puml");
     }
 

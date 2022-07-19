@@ -9,6 +9,7 @@ import org.apache.commons.scxml2.model.EnterableState;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,7 +30,14 @@ public class Trace {
     }
 
     public synchronized boolean append(Set<EnterableState> configuration, ORIGIN origin) {
-        return trace.add(new Node(origin, configuration));
+        Node node = new Node(origin, configuration);
+        if (trace.size() > 0) {
+            Node last = trace.get(trace.size() - 1);
+            if (Node.sameState(node, last)) {
+                return false;
+            }
+        }
+        return trace.add(node);
     }
 
     public Set<RecordNode> getRecordNodes() {
@@ -69,6 +77,25 @@ public class Trace {
                     .map(action -> (Task) action)
                     .map(RecordNode::new)
                     .collect(Collectors.toSet());
+        }
+
+        public static boolean sameState(Node node1, Node node2) {
+            if (!Objects.equals(node1.getOrigin(), node2.getOrigin()) ||
+                    node1.getRecordNodes().size() != node2.getRecordNodes().size()) {
+                return false;
+            };
+
+            for (RecordNode recordNode1 : node1.getRecordNodes()) {
+                RecordNode find = node2.getRecordNodes().stream()
+                        .filter(recordNode2 -> recordNode1.getTask() == recordNode2.getTask())
+                        .findFirst()
+                        .orElse(null);
+                if (find == null ||
+                        !Objects.equals(recordNode1.getTaskRecord().getTaskId(), find.getTaskRecord().getTaskId())) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
